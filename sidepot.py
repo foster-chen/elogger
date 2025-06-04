@@ -1,17 +1,18 @@
 from typing import Dict, List, Set, Tuple
 
 class Pot:
-    def __init__(self, amount: int, num_players: int, num_runs: int, players_eligible: set, is_sidepot: bool = False):
+    def __init__(self, amount: int, num_players: int, num_runs: int, players_eligible: set, pot_id: int):
         self.amount = amount
         self.num_players = num_players
         self.num_runs = num_runs
         self.players_eligible = players_eligible
-        self.is_sidepot = is_sidepot
+        self.pot_id = pot_id
         self.entitled_chips = [0 for _ in range(num_players)]
         self.entitled_chips_per_run = [[0 for _ in range(num_players)] for _ in range(num_runs)]
 
     def _verbose(self):
-        print(f"\n{'Side' if self.is_sidepot else 'Main'} pot with {self.amount} chips, eligible to {self.players_eligible}")
+        pot_name = '\033[93m' + 'Main pot' + '\033[0m' if self.pot_id == 0 else '\033[93m' + f"Side-pot {self.pot_id}" + '\033[0m'
+        print(f"\n{pot_name} with {self.amount} chips, eligible to {self.players_eligible}")
         print("-" * (13 + self.num_players * 10))
         print(f"{'| Player ID'.ljust(11)} | ", end='')
         for i in range(self.num_players):
@@ -20,6 +21,7 @@ class Pot:
                 message = '\033[90m' + message + '\033[0m'
             print(f"{message}", end='')
         print()
+        print('\033[90m' + "-" * (13 + self.num_players * 10) + '\033[0m')
         for run_idx in range(self.num_runs):
             print(f"{('| Run ' + str(run_idx + 1)).ljust(11)} | ", end='')
             for i in range(self.num_players):
@@ -128,35 +130,6 @@ class SidePotCalculator:
         self.run_results = [{0: set([1]), 1: set([2]), 2: set([0]), 3: set([3])},
                             {0: set([2]), 1: set([1, 3]), 2: set([0])},
                             {0: set([0, 1]), 1: set([2]), 2: set([3])}]
-        # self.run_results = []
-        # for i in range(self.num_runs):
-        #     run_result = {}  # dictionary, with key as hand tier and value as set of player indices
-
-        #     # Get per-run result
-        #     hands_to_count = set([i for i in range(self.num_players)])
-        #     hand_tier = 0
-        #     print(f"Enter 0-based player indices in descending order of hand strength for run {i + 1}, space-separate in case of ties.")
-        #     while len(hands_to_count) > 0:
-        #         try:
-        #             player_indices = input(f"Enter tier {hand_tier + 1} player IDs: ")
-        #             if not player_indices:
-        #                 continue
-        #             player_indices = list(map(int, player_indices.split()))
-        #             # assert to prevent segmentation fault
-        #             assert all(0 <= idx < self.num_players for idx in player_indices) \
-        #                 and len(set(player_indices)) == len(player_indices) \
-        #                 and all(idx in hands_to_count for idx in player_indices)
-        #             run_result[hand_tier] = set(player_indices)
-        #             hand_tier += 1
-        #             for index in player_indices:
-        #                 hands_to_count.remove(index)
-        #         except AssertionError:
-        #             print('\033[93m' + f"Player indices must be within the range of [0, {self.num_players - 1}] and non-repetitive. Available indices: {hands_to_count}" + '\033[0m')
-        #             continue
-        #         except KeyError:
-        #             print('\033[93m' + f"Available indices: {hands_to_count}" + '\033[0m')
-        #             continue
-        #     self.run_results.append(run_result)
 
     def _allocate_pot(self) -> List[Tuple[int, int]]:
         """
@@ -174,10 +147,11 @@ class SidePotCalculator:
                              self.num_players,
                              self.num_runs,
                              set(range(self.num_players)),
-                             is_sidepot=False))
+                             pot_id=0))
         # delete each players' stacks by the amount of shortest stack. Remove player with empty stack.
         sorted_players = [(element[0], element[1] - sorted_players[0][1]) for element in sorted_players if element[1] - sorted_players[0][1] > 0]
 
+        sidepot_id = 1
         # side pot calculation
         while len(sorted_players) > 1:  # need at least 2 stacks for another side-pot, otherwise remaining stacks of deepest player won't be involved
             # no sorting necessary as sorted_players is already in stack-size ascending order
@@ -185,8 +159,9 @@ class SidePotCalculator:
                                 self.num_players,
                                 self.num_runs,
                                 set([element[0] for element in sorted_players]),
-                                is_sidepot=True))
+                                pot_id=sidepot_id))
             sorted_players = [(element[0], element[1] - sorted_players[0][1]) for element in sorted_players if element[1] - sorted_players[0][1] > 0]
+            sidepot_id += 1
         return sorted_players
 
     def _verbose(self):
@@ -196,6 +171,7 @@ class SidePotCalculator:
         for i in range(self.num_players):
             print(f"{('Player ' + str(i) + ' ').ljust(10)}", end='')
         print()
+        print('\033[90m' + "-" * (13 + self.num_players * 10) + '\033[0m')
         print(f"{'| Stack'.ljust(11)} | ", end='')
         for i in range(self.num_players):
             print(f"{str(self.player_stacks[i]).ljust(10)}", end='')
@@ -209,7 +185,7 @@ class SidePotCalculator:
         Returns:
             List[int]: Returns the final stack of each player
         """
-        self._verbose()
+        # self._verbose()
 
         resultant_stack = [0] * self.num_players
         remaining_stacks = self._allocate_pot()
@@ -223,10 +199,36 @@ class SidePotCalculator:
                 resultant_stack[player_id] += distribution[player_id]
         return resultant_stack
 
-if __name__ == "__main__":
-    calculator = SidePotCalculator(debug=True)
+def verbose(calculator: SidePotCalculator):
     winnings = calculator.calculate()
+    print()
+    print(f"Final result with {calculator.money_in_pot} pot chips")
+    print("-" * (13 + calculator.num_players * 10))
+    print(f"{'| Player ID'.ljust(11)} | ", end='')
+    for i in range(calculator.num_players):
+        print(f"{('Player ' + str(i) + ' ').ljust(10)}", end='')
+    print()
+    print('\033[90m' + "-" * (13 + calculator.num_players * 10) + '\033[0m')
+    print(f"{'| Stack'.ljust(11)} | ", end='')
+    for i in range(calculator.num_players):
+        print(f"{str(calculator.player_stacks[i]).ljust(10)}", end='')
+    print()
+    print(f"{'| Delta'.ljust(11)} | ", end='')
+    for i in range(calculator.num_players):
+        value = winnings[i] - calculator.player_stacks[i]
+        if value > 0:
+            message = '\033[92m' + str(value) + '\033[0m'
+        elif value < 0:
+            message = '\033[91m' + str(value)[1:] + '\033[0m'  # remove minus sign
+        print(f"{message.ljust(19)}", end='')
+    print()
+    print('\033[90m' + "-" * (13 + calculator.num_players * 10) + '\033[0m')
+    print(f"{'| Result'.ljust(11)} | ", end='')
+    for i in range(calculator.num_players):
+        print(f"{str(winnings[i]).ljust(10)}", end='')
+    print()
+    print("-" * (13 + calculator.num_players * 10))
 
-    print("\nFinal winnings:")
-    for player, amount in enumerate(winnings):
-        print(f"Player {player}: {amount} chips")
+if __name__ == "__main__":
+    calculator = SidePotCalculator(debug=False)
+    verbose(calculator)
