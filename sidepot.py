@@ -110,10 +110,10 @@ class SidePotCalculator:
                     assert all(0 <= idx < self.num_players for idx in player_indices) \
                         and len(set(player_indices)) == len(player_indices) \
                         and all(idx in hands_to_count for idx in player_indices)
-                    run_result[hand_tier] = set(player_indices)
-                    hand_tier += 1
                     for index in player_indices:
-                        hands_to_count.remove(index)
+                        hands_to_count.remove(index)  # generates KeyError if index not in hands_to_count
+                    run_result[hand_tier] = set(player_indices)  # enter data AFTER all potential errors
+                    hand_tier += 1
                 except AssertionError:
                     print('\033[93m' + f"Player indices must be within the range of [0, {self.num_players - 1}] and non-repetitive. Available indices: {hands_to_count}" + '\033[0m')
                     continue
