@@ -3,6 +3,10 @@ import json
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Constants
 DEFAULT_ELO = 1500
@@ -175,6 +179,68 @@ def reset_players():
     save_data(data)
     print("Reset all player ELO to 1500.0")
 
+def visualize_elo():
+    data = load_data()
+
+    records = []
+    for player, timestamps in data['elo'].items():
+        for timestamp_str, elo in timestamps.items():
+            # Convert ISO format string to datetime object
+            timestamp = datetime.fromisoformat(timestamp_str)
+            records.append({
+                'player': player,
+                'timestamp': timestamp,
+                'elo': elo
+            })
+
+    # Create DataFrame and sort by timestamp
+    df = pd.DataFrame(records).sort_values('timestamp')
+
+    # Optional: Set timestamp as index
+    df = df.set_index('timestamp')
+    df_wide = df.reset_index().pivot(index='timestamp', columns='player', values='elo')
+    df_wide = df_wide.reset_index()
+    df_wide['game_id'] = range(1, len(df_wide) + 1)
+    df_wide.head()
+
+    sns.set_theme()
+    plt.figure(figsize=(16, 12), dpi=80)
+    df_melted = df_wide.melt(id_vars=['game_id'],
+                              value_vars=list(df_wide.columns)[1:-1],
+                              var_name='player',
+                              value_name='elo')
+    ax = sns.lineplot(data=df_melted,
+                      x='game_id',
+                      y='elo',
+                      hue='player',
+                      marker='o',
+                      markersize=8,
+                      linewidth=2)
+    # Customize the plot
+    plt.title('ELO Rating Over Time', fontsize=16)
+    plt.xlabel('Game ID', fontsize=14)
+    plt.ylabel('ELO Rating', fontsize=14)
+
+    # Get the colors from the legend handles
+    handles, labels = ax.get_legend_handles_labels()
+    color_map = {label: handle.get_color() for handle, label in zip(handles, labels)}
+
+    # Add value labels for the last point of each player
+    for player in list(df_wide.columns)[1:-1]:
+        last_point = df_wide[player].dropna().iloc[-1]
+        last_game = df_wide[player].dropna().index[-1]
+        ax.text(df_wide.loc[last_game, 'game_id'],
+                last_point + 5,
+                f'{last_point:.1f}',
+                ha='center',
+                fontsize=10,
+                color=color_map[player],
+                bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=1))
+
+    plt.legend(title='Player', title_fontsize=12)
+    plt.tight_layout()
+    plt.savefig("elo.png")
+
 def update_elo(order_of_finish: list = None, timestamp=None):
     """Update ELO ratings based on game results"""
     elo = load_elo()
@@ -248,6 +314,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--current", action="store_true", help="Display current ELO rankings")
     parser.add_argument("-p", "--player", help="Display ELO history for specific player")
     parser.add_argument("-d", "--delete_player", help="Delete a player history")
+    parser.add_argument("-v", "--visualize", action="store_true", help="Visualize ELO change")
     args = parser.parse_args()
 
     if args.init:
@@ -262,5 +329,7 @@ if __name__ == "__main__":
         display_player_history(args.player)
     elif args.delete_player:
         delete_player(args.delete_player)
+    elif args.visualize:
+      visualize_elo()
     else:
         update_elo()
