@@ -12,7 +12,8 @@ class Pot:
 
     def _verbose(self):
         pot_name = '\033[93m' + 'Main pot' + '\033[0m' if self.pot_id == 0 else '\033[93m' + f"Side-pot {self.pot_id}" + '\033[0m'
-        print(f"\n{pot_name} with {self.amount} chips, eligible to {self.players_eligible}")
+        amount_str = f"\033[93m{self.amount}\033[0m"
+        print(f"\n{pot_name} with {amount_str} chips, eligible to player {list(self.players_eligible)}")
         print("-" * (13 + self.num_players * 10))
         print(f"{'| Player ID'.ljust(11)} | ", end='')
         for i in range(self.num_players):
@@ -230,5 +231,5 @@ def verbose(calculator: SidePotCalculator):
     print("-" * (13 + calculator.num_players * 10))
 
 if __name__ == "__main__":
-    calculator = SidePotCalculator(debug=False)
+    calculator = SidePotCalculator(debug=True)
     verbose(calculator)
